@@ -1,0 +1,1698 @@
+#! C:/Program Files/Nuke10.5v4/nuke-10.5.4.dll -nx
+version 10.5 v4
+Gizmo {
+ tile_color 0x5b93d6ff
+ addUserKnob {20 SlateTab l Slate}
+ addUserKnob {1 slate_show l Show}
+ slate_show TRANS4
+ addUserKnob {1 slate_entity l Asset/Shot}
+ addUserKnob {1 slate_version l Version}
+ slate_version shot.comp.v008
+ addUserKnob {1 slate_vendor l Vendor}
+ slate_vendor "Astips Studio"
+ addUserKnob {1 slate_artist l Artist -STARTLINE}
+ slate_artist astips
+ addUserKnob {6 auto_date l "Auto Date" +STARTLINE}
+ addUserKnob {1 date l Date}
+ date 07/14/20
+ addUserKnob {6 slate_camera_lens_enabled l "Camera Lens" +STARTLINE}
+ addUserKnob {1 slate_camera_lens l "" -STARTLINE}
+ addUserKnob {6 slate_colorspace_enabled l "Colorspace   " +STARTLINE}
+ addUserKnob {1 slate_colorspace l "" -STARTLINE}
+ addUserKnob {6 slate_reel_name_enabled l "Reel Name  " +STARTLINE}
+ addUserKnob {1 slate_reel_name l " " -STARTLINE}
+ addUserKnob {3 slate_info_h_spacing l Margin}
+ slate_info_h_spacing 10
+ addUserKnob {3 slate_info_v_spacing l "" -STARTLINE}
+ slate_info_v_spacing 10
+ addUserKnob {3 slate_thumbnail_number l Thumbnail}
+ slate_thumbnail_number 3
+ addUserKnob {7 slate_thumbnail_size l Size -STARTLINE R 0.1 2}
+ slate_thumbnail_size 1
+ addUserKnob {26 ""}
+ addUserKnob {6 auto_frame l "Auto Frame" +STARTLINE}
+ auto_frame true
+ addUserKnob {3 start_frame l Start}
+ start_frame 1001
+ addUserKnob {3 end_frame l End -STARTLINE}
+ end_frame 1121
+ addUserKnob {3 time_offset l Offset}
+ time_offset 632
+ addUserKnob {6 slate_cut_enabled l "Cut In/Out" +STARTLINE}
+ addUserKnob {3 slate_cut_in l In}
+ slate_cut_in 1009
+ addUserKnob {3 slate_cut_out l Out -STARTLINE}
+ slate_cut_out 1307
+ addUserKnob {7 fps l FPS R 0 120}
+ fps {{"\[value root.fps]"}}
+ addUserKnob {6 add_timecode l "Add Start Time Code" +STARTLINE}
+ add_timecode true
+ addUserKnob {41 startcode l "" -STARTLINE T SLATE_ADDTIMECODE.startcode}
+ addUserKnob {22 generate_timecode l "From Input Frame" -STARTLINE T "import math\n\nVALID_NON_DROPFRAME_TIMECODE_RATES = (\n    1,\n    12,\n    23.976,\n    23.98,\n    (24000 / 1001.0),\n    24,\n    25,\n    30,\n    29.97,\n    (30000 / 1001.0),\n    48,\n    50,\n    59.94,\n    (60000 / 1001.0),\n    60,\n)\n\nVALID_DROPFRAME_TIMECODE_RATES = (\n    29.97,\n    (30000 / 1001.0),\n    59.94,\n    (60000 / 1001.0),\n)\n\ndef to_timecode(value, rate=None, drop_frame=None):\n    \"\"\"Convert a frame into a timecode string.\n\n    :param value: (:class:`int`) frame number.\n    :param rate: (:class:`float`) The frame-rate to calculate timecode in\n        terms of. (Default time_obj.rate)\n    :param drop_frame: (:class:`bool`) ``True`` to make drop-frame timecode,\n        ``False`` for non-drop. If left ``None``, a format will be guessed\n        based on rate.\n\n    :return: (:class:`str`) The timecode.\n    \"\"\"\n\n    # Check if rate is drop frame\n    rate_is_dropframe = rate in VALID_DROPFRAME_TIMECODE_RATES\n    if drop_frame and not rate_is_dropframe:\n        raise ValueError(\n            \"Invalid rate for drop-frame timecode \{\}\".format(time_obj.rate)\n        )\n\n    # if in auto-detect for DFTC, use the rate to decide\n    if drop_frame is None:\n        drop_frame = rate_is_dropframe\n\n    dropframes = 0\n    if drop_frame:\n        if rate in (29.97, (30000 / 1001.0)):\n            dropframes = 2\n\n        elif rate == 59.94:\n            dropframes = 4\n\n    # For non-dftc, use the integral frame rate\n    if not drop_frame:\n        rate = round(rate)\n\n    # Number of frames in an hour\n    frames_per_hour = int(round(rate * 60 * 60))\n    # Number of frames in a day - timecode rolls over after 24 hours\n    frames_per_24_hours = frames_per_hour * 24\n    # Number of frames per ten minutes\n    frames_per_10_minutes = int(round(rate * 60 * 10))\n    # Number of frames per minute is the round of the framerate * 60 minus\n    # the number of dropped frames\n    frames_per_minute = int(round(rate) * 60) - dropframes\n\n    if value < 0:\n        raise ValueError(\n            \"Negative values are not supported for converting to timecode.\")\n\n    # If frame_number is greater than 24 hrs, next operation will rollover\n    # clock\n    value %= frames_per_24_hours\n\n    if drop_frame:\n        d = value // frames_per_10_minutes\n        m = value % frames_per_10_minutes\n        if m > dropframes:\n            value += (dropframes * 9 * d) + \\\n                dropframes * ((m - dropframes) // frames_per_minute)\n        else:\n            value += dropframes * 9 * d\n\n    nominal_fps = int(math.ceil(rate))\n\n    frames = value % nominal_fps\n    seconds = (value // nominal_fps) % 60\n    minutes = ((value // nominal_fps) // 60) % 60\n    hours = (((value // nominal_fps) // 60) // 60)\n\n    tc = \"\{HH:02d\}:\{MM:02d\}:\{SS:02d\}\{div\}\{FF:02d\}\"\n\n    return tc.format(\n        HH=int(hours),\n        MM=int(minutes),\n        SS=int(seconds),\n        div=drop_frame and \";\" or \":\",\n        FF=int(frames))\n\nthis_node = nuke.thisNode()\n\nframe = float(nuke.getInput('Frame?'))\nrate = this_node\['fps'].value()\n\ntimecode = to_timecode(frame, rate)\n\nthis_node.begin()\ntimecode_node = nuke.toNode('SLATE_ADDTIMECODE')\ntimecode_node\['startcode'].setValue(timecode)\nthis_node.end()"}
+ addUserKnob {3 slate_frame l "Slate Frame"}
+ slate_frame 1000
+ addUserKnob {6 render_slate l "Render Slate" +STARTLINE}
+ render_slate true
+ addUserKnob {26 ""}
+ addUserKnob {41 comment l Comment T SLATE_VALUE_COMMENT.message}
+ addUserKnob {41 slate_comment_font l Font T SLATE_VALUE_COMMENT.font}
+ addUserKnob {22 slate_set_children_font l "Set To All" -STARTLINE T "import nuke\n\nslate_node = nuke.thisNode()\nfont_values = slate_node\['slate_comment_font'].getValue()\n\n# SLATE_VALUE_COMMENT\nslate_node.begin()\n\nchildren = slate_node.nodes()\nfor child in children:\n    # print child.name()\n    if child.Class() not in \['Text', 'Text2']:\n        continue\n    child\['font'].setValue(font_values\[0], font_values\[1])\n\nslate_node.end()"}
+ addUserKnob {20 OverlayTab l Overlay}
+ addUserKnob {6 overlay_enabled l "Overlay Enabled" -STARTLINE}
+ overlay_enabled true
+ addUserKnob {7 overlay_opacity l Opacity}
+ overlay_opacity 0.75
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_logo l Logo +STARTLINE}
+ overlay_logo true
+ addUserKnob {4 overlay_logo_h l "" -STARTLINE M {Left Center "" "" "" "" ""}}
+ addUserKnob {68 overlay_logo_v l "" -STARTLINE M {Top Bottom "" "" "" ""}}
+ addUserKnob {16 overlay_logo_size l " "}
+ overlay_logo_size 0.45
+ addUserKnob {3 overlay_logo_xmargin l Margin -STARTLINE}
+ overlay_logo_xmargin 10
+ addUserKnob {3 overlay_logo_ymargin l "" -STARTLINE}
+ overlay_logo_ymargin 10
+ addUserKnob {6 overlay_vendor l Vendor +STARTLINE}
+ addUserKnob {41 overlay_vendor_xjustify l "" -STARTLINE T OVERLAY_VENDOR.xjustify}
+ addUserKnob {41 overlay_vendor_yjustify l "" -STARTLINE T OVERLAY_VENDOR.yjustify}
+ addUserKnob {16 overlay_vendor_size l " "}
+ overlay_vendor_size 0.3
+ addUserKnob {3 overlay_vendor_xmargin l Margin -STARTLINE}
+ overlay_vendor_xmargin 10
+ addUserKnob {3 overlay_vendor_ymargin l "" -STARTLINE}
+ overlay_vendor_ymargin 10
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_show l Show +STARTLINE}
+ overlay_show true
+ addUserKnob {41 overlay_show_xjustify l "" -STARTLINE T OVERLAY_SHOW.xjustify}
+ addUserKnob {41 overlay_show_yjustify l "" -STARTLINE T OVERLAY_SHOW.yjustify}
+ addUserKnob {16 overlay_show_size l " "}
+ overlay_show_size 0.5
+ addUserKnob {3 overlay_show_xmargin l Margin -STARTLINE}
+ overlay_show_xmargin 10
+ addUserKnob {3 overlay_show_ymargin l "" -STARTLINE}
+ overlay_show_ymargin 10
+ addUserKnob {6 overlay_entity l "Asset / Shot" +STARTLINE}
+ addUserKnob {41 overlay_entity_xjustify l "" -STARTLINE T OVERLAY_ENTITY.xjustify}
+ addUserKnob {41 overlay_entity_yjustify l "" -STARTLINE T OVERLAY_ENTITY.yjustify}
+ addUserKnob {16 overlay_entity_size l " "}
+ overlay_entity_size 0.3
+ addUserKnob {3 overlay_entity_xmargin l Margin -STARTLINE}
+ overlay_entity_xmargin 10
+ addUserKnob {3 overlay_entity_ymargin l "" -STARTLINE}
+ overlay_entity_ymargin 10
+ addUserKnob {6 overlay_version l Version +STARTLINE}
+ overlay_version true
+ addUserKnob {41 overlay_version_xjustify l "" -STARTLINE T OVERLAY_VERSION.xjustify}
+ addUserKnob {41 overlay_version_yjustify l "" -STARTLINE T OVERLAY_VERSION.yjustify}
+ addUserKnob {16 overlay_version_size l " "}
+ overlay_version_size 0.3
+ addUserKnob {3 overlay_version_xmargin l Margin -STARTLINE}
+ overlay_version_xmargin 10
+ addUserKnob {3 overlay_version_ymargin l "" -STARTLINE}
+ overlay_version_ymargin 10
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_date l Date +STARTLINE}
+ addUserKnob {41 overlay_date_xjustify l "" -STARTLINE T OVERLAY_DATE.xjustify}
+ addUserKnob {41 overlay_date_yjustify l "" -STARTLINE T OVERLAY_DATE.yjustify}
+ addUserKnob {16 overlay_date_size l " "}
+ overlay_date_size 0.3
+ addUserKnob {3 overlay_date_xmargin l Margin -STARTLINE}
+ overlay_date_xmargin 10
+ addUserKnob {3 overlay_date_ymargin l "" -STARTLINE}
+ overlay_date_ymargin 10
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_frame_with_cut l "Frame | Cut" +STARTLINE}
+ overlay_frame_with_cut true
+ addUserKnob {41 overlay_frame_with_cut_xjustify l "" -STARTLINE T OVERLAY_FRAME_WITH_CUT.xjustify}
+ addUserKnob {41 overlay_frame_with_cut_yjustify l "" -STARTLINE T OVERLAY_FRAME_WITH_CUT.yjustify}
+ addUserKnob {16 overlay_frame_with_cut_size l " "}
+ overlay_frame_with_cut_size 0.3
+ addUserKnob {3 overlay_frame_with_cut_xmargin l Margin -STARTLINE}
+ overlay_frame_with_cut_xmargin 10
+ addUserKnob {3 overlay_frame_with_cut_ymargin l "" -STARTLINE}
+ overlay_frame_with_cut_ymargin 10
+ addUserKnob {6 overlay_frame l Frame +STARTLINE}
+ addUserKnob {41 overlay_frame_xjustify l "" -STARTLINE T OVERLAY_FRAME.xjustify}
+ addUserKnob {41 overlay_frame_yjustify l "" -STARTLINE T OVERLAY_FRAME.yjustify}
+ addUserKnob {16 overlay_frame_size l " "}
+ overlay_frame_size 0.3
+ addUserKnob {3 overlay_frame_xmargin l Margin -STARTLINE}
+ overlay_frame_xmargin 10
+ addUserKnob {3 overlay_frame_ymargin l "" -STARTLINE}
+ overlay_frame_ymargin 10
+ addUserKnob {6 overlay_frame_only_current l "Only Current Frame" +STARTLINE}
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_artist l Artist +STARTLINE}
+ overlay_artist true
+ addUserKnob {41 overlay_artist_xjustify l "" -STARTLINE T OVERLAY_ARTIST.xjustify}
+ addUserKnob {41 overlay_artist_yjustify l "" -STARTLINE T OVERLAY_ARTIST.yjustify}
+ addUserKnob {16 overlay_artist_size l " "}
+ overlay_artist_size 0.3
+ addUserKnob {3 overlay_artist_xmargin l Margin -STARTLINE}
+ overlay_artist_xmargin 10
+ addUserKnob {3 overlay_artist_ymargin l "" -STARTLINE}
+ overlay_artist_ymargin 10
+ addUserKnob {6 overlay_reel_name l Reel +STARTLINE}
+ addUserKnob {41 overlay_reel_xjustify l "" -STARTLINE T OVERLAY_REEL.xjustify}
+ addUserKnob {41 overlay_reel_yjustify l "" -STARTLINE T OVERLAY_REEL.yjustify}
+ addUserKnob {16 overlay_reel_size l " "}
+ overlay_reel_size 0.3
+ addUserKnob {3 overlay_reel_xmargin l Margin -STARTLINE}
+ overlay_reel_xmargin 10
+ addUserKnob {3 overlay_reel_ymargin l "" -STARTLINE}
+ overlay_reel_ymargin 10
+ addUserKnob {6 overlay_source_timecode l Timecode +STARTLINE}
+ addUserKnob {41 overlay_source_timecode_xjustify l "" -STARTLINE T OVERLAY_SRC_TIMECODE.xjustify}
+ addUserKnob {41 overlay_source_timecode_yjustify l "" -STARTLINE T OVERLAY_SRC_TIMECODE.yjustify}
+ addUserKnob {16 overlay_source_timecode_size l " "}
+ overlay_source_timecode_size 0.3
+ addUserKnob {3 overlay_source_timecode_xmargin l Margin -STARTLINE}
+ overlay_source_timecode_xmargin 10
+ addUserKnob {3 overlay_source_timecode_ymargin l "" -STARTLINE}
+ overlay_source_timecode_ymargin 10
+ addUserKnob {26 ""}
+ addUserKnob {6 overlay_crop_mask_enabled l "Crop Mask Enabled" +STARTLINE}
+ overlay_crop_mask_enabled true
+ addUserKnob {41 color l Color T OVERLAY_CROP_MASK.color}
+ addUserKnob {3 overlay_crop_width l Format t "Resolution - Width / Height"}
+ overlay_crop_width 1280
+ addUserKnob {3 overlay_crop_height l "" -STARTLINE}
+ overlay_crop_height 580
+ addUserKnob {20 LogoTab l Logo}
+ addUserKnob {1 logo_image l "Logo Image"}
+ logo_image D:/workspace/github/nuke-gizmo-magic-slate/logos/logo_swhomes.png
+ addUserKnob {7 slate_logo_size l Size R 0.1 10}
+ slate_logo_size 2
+ addUserKnob {6 grid_enabled l "Grid Enabled" +STARTLINE}
+ addUserKnob {20 ColorTab l Color}
+ addUserKnob {41 slate_bg_color l "BG Color" T SLATE_BG_GRAY_CONSTANT.color}
+ addUserKnob {41 slate_title_color l "Title Color" T SLATE_BG_BLACK_CONSTANT.color}
+}
+ BackdropNode {
+  inputs 0
+  name BackdropNode1
+  xpos -1480
+  ypos -6
+ }
+ BackdropNode {
+  inputs 0
+  name BackdropNode2
+  xpos -2470
+  ypos -6
+ }
+ BackdropNode {
+  inputs 0
+  name COLORBAR_BDG
+  tile_color 0x508e57ff
+  gl_color 0xc8cc7dff
+  label "COLOR BAR\n"
+  note_font "Bitstream Vera Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -2570
+  ypos -83
+  bdwidth 1285
+  bdheight 671
+ }
+ BackdropNode {
+  inputs 0
+  name OVERLAY_BDG
+  tile_color 0x7f885dff
+  label OVERLAY
+  note_font "DejaVu Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -7246
+  ypos 293
+  bdwidth 2982
+  bdheight 957
+ }
+ BackdropNode {
+  inputs 0
+  name OVERLAY_MASK_BDG
+  tile_color 0x8e8e3800
+  label "OVERLAY_MASK\n"
+  note_font "Bitstream Vera Sans Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -3983
+  ypos 978
+  bdwidth 609
+  bdheight 355
+ }
+ BackdropNode {
+  inputs 0
+  name SLATE_INFO_BDG
+  tile_color 0x5f6088ff
+  label "SLATE INFO\n"
+  note_font "Bitstream Vera Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -2567
+  ypos 630
+  bdwidth 1811
+  bdheight 586
+ }
+ BackdropNode {
+  inputs 0
+  name SLATE_LOGO_BDG
+  label "STUDIO LOGO"
+  note_font "DejaVu Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -1264
+  ypos -83
+  bdwidth 474
+  bdheight 672
+ }
+ BackdropNode {
+  inputs 0
+  name SLATE_THUMBNAIL_BDG
+  label "THUMBNAIL 01"
+  note_font "Liberation Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -765
+  ypos -83
+  bdwidth 371
+  bdheight 672
+ }
+ BackdropNode {
+  inputs 0
+  name SLATE_THUMBNAIL_BDG1
+  label "THUMBNAIL 02"
+  note_font "Liberation Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos -366
+  ypos -83
+  bdwidth 371
+  bdheight 672
+ }
+ BackdropNode {
+  inputs 0
+  name SLATE_THUMBNAIL_BDG2
+  label "THUMBNAIL 03"
+  note_font "Liberation Sans Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold Bold"
+  note_font_size 42
+  xpos 32
+  ypos -81
+  bdwidth 371
+  bdheight 672
+ }
+ Read {
+  inputs 0
+  file "\[value parent.logo_image]"
+  format {{{DDC_SLATE_Reformat.format}}}
+  origset true
+  raw true
+  name OVERLAY_LOGO
+  xpos -6998
+  ypos 693
+  disable {{"1-\[knob parent.overlay_logo]"}}
+ }
+ Premult {
+  channels rgba
+  name OVERLAY_LOGO_PREMULT
+  xpos -6998
+  ypos 839
+ }
+ Multiply {
+  value {{"\[knob parent.overlay_opacity]"}}
+  name OVERLAY_LOGO_MULTIPLY
+  xpos -6998
+  ypos 918
+ }
+ Transform {
+  translate {{"\[string equal \[knob parent.overlay_logo_h] \"Left\"]?\[knob parent.overlay_logo_xmargin]+\[value parent.width]/1920*10:(parent.width-1482*scale)/2"} {"\[string equal \[knob parent.overlay_logo_v] \"Top\"]?parent.height-(input.height/2)*(1+scale)-\[knob parent.overlay_logo_ymargin]-\[value parent.width]/1920*10:(input.height/2)*(this.scale-1)+\[knob parent.overlay_logo_ymargin]+\[value parent.width]/1920*10"}}
+  scale {{"\[knob parent.overlay_logo_size]*parent.width/1920"}}
+  center {0 {input.height/2}}
+  name OVERLAY_LOGO_TRANSFORM
+  xpos -6998
+  ypos 1009
+ }
+ Reformat {
+  inputs 0
+  format {{{input.format}}}
+  black_outside true
+  pbb true
+  name OVERLAY_REFORMAT
+  selected true
+  xpos -5983
+  ypos 428
+ }
+set N59a08c00 [stack 0]
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_vendor]"
+  old_message {{65 115 116 105 112 115 32 83 116 117 100 105 111}
+    }
+  old_expression_markers {{0 12}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_vendor_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_vendor_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_vendor_size]*parent.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_VENDOR
+  xpos -6790
+  ypos 707
+  disable {{"1-\[knob parent.overlay_vendor]"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge26
+  xpos -6790
+  ypos 1009
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_show]"
+  old_message {{84 82 65 78 83 52}
+    }
+  old_expression_markers {{0 5}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_show_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_show_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_show_size]*parent.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_SHOW
+  xpos -6578
+  ypos 709
+  disable {{"1-\[knob parent.overlay_show]"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge20
+  xpos -6578
+  ypos 1009
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_entity]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_entity_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_entity_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify center
+  transforms {{0 2}
+    }
+  cursor_position 26
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_entity_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_ENTITY
+  xpos -6335
+  ypos 711
+  disable {{"1-\[knob parent.overlay_entity]"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge19
+  xpos -6335
+  ypos 1009
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[? parent.auto_date==1 \[date %Y/%m/%d] \[knob parent.date]] "
+  old_message {{48 55 47 49 52 47 50 48 32}
+    }
+  old_expression_markers {{0 7}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_date_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_date_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify right
+  yjustify bottom
+  transforms {{0 2}
+    }
+  kern_values {{0 0}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_date_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_DATE
+  xpos -6087
+  ypos 709
+  disable {{"1-\[knob parent.overlay_date]"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge14
+  xpos -6087
+  ypos 1010
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_version]"
+  old_message {{115 104 111 116 46 99 111 109 112 46 118 48 48 56}
+    }
+  old_expression_markers {{0 13}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_version_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_version_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify center
+  yjustify bottom
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_version_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_VERSION
+  xpos -5844
+  ypos 710
+  disable {{"1-\[knob parent.overlay_version]"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge15
+  xpos -5844
+  ypos 1010
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[? parent.overlay_frame_only_current==1 \[expr \[frame]+\[knob parent.time_offset]] \[expr \[frame]+\[knob parent.time_offset]]/\[? parent.auto_frame==1 \[expr \[value Input1.last_frame]+\[knob parent.time_offset]] \[knob parent.end_frame]]]\n"
+  old_message {{49 48 52 56 47 49 51 49 52 10}
+    }
+  old_expression_markers {{0 8}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_frame_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_frame_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  yjustify bottom
+  transforms {{0 2}
+    }
+  cursor_position 81
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_frame_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_FRAME
+  xpos -5617
+  ypos 708
+  disable {{"max(1-\[knob parent.overlay_frame], 1-\[knob parent.overlay_enabled])"}}
+ }
+ Merge2 {
+  inputs 2
+  metainput All
+  rangeinput All
+  name Merge16
+  xpos -5617
+  ypos 1010
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_cut_in]-\[knob parent.slate_cut_out] | \[expr \[frame]+\[knob parent.time_offset]]/\[? parent.auto_frame==1 \[expr \[value Input1.last_frame]+\[knob parent.time_offset]] \[knob parent.end_frame]]"
+  old_message {{49 48 48 57 45 49 51 48 55 32 124 32 57 57 53 47 49 51 49 52}
+    }
+  old_expression_markers {{0 3 5 8 12 14 16 19}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_frame_with_cut_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_frame_with_cut_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  yjustify bottom
+  transforms {{0 2}
+    }
+  cursor_position 127
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_frame_with_cut_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_FRAME_WITH_CUT
+  xpos -5382
+  ypos 707
+  disable {{"max(1-\[knob parent.overlay_frame_with_cut], 1-\[knob parent.overlay_enabled])"}}
+  lifetimeStart 995
+  lifetimeEnd 1011
+ }
+ Merge2 {
+  inputs 2
+  name Merge29
+  xpos -5382
+  ypos 1010
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_artist]"
+  old_message {{97 115 116 105 112 115}
+    }
+  old_expression_markers {{0 5}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_artist_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_artist_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify right
+  yjustify bottom
+  transforms {{0 2}
+    }
+  cursor_position 25
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_artist_size]*input.width/1920"}}
+  scale {1 1}
+  center {960 540}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: 0 items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_ARTIST
+  xpos -5145
+  ypos 709
+  disable {{"max(1-\[knob parent.overlay_artist], 1-\[knob parent.overlay_enabled])"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge18
+  xpos -5145
+  ypos 1010
+ }
+push $N59a08c00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[knob parent.slate_reel_name]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_reel_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_reel_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  yjustify bottom
+  transforms {{0 2}
+    }
+  cursor_position 29
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_reel_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_REEL
+  xpos -4898
+  ypos 709
+  disable {{"max(1-\[knob parent.overlay_reel_name], 1-\[knob parent.overlay_enabled])"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge27
+  xpos -4898
+  ypos 1010
+ }
+ Input {
+  inputs 0
+  name Input1
+  xpos -3180
+  ypos -566
+ }
+set N59b49800 [stack 0]
+ Expression {
+  expr0 0
+  expr1 0
+  expr2 0
+  expr3 0
+  name OVERLAY_SRC_EXPRESSION
+  label "Ignore Input1's RGBA"
+  note_font_color 0xff
+  xpos -4680
+  ypos 573
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  opacity {{"\[knob parent.overlay_opacity]"}}
+  message "\[metadata input/timecode]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"\[value input.width]/1920*10 + \[knob parent.overlay_source_timecode_xmargin]"} {"\[value input.width]/1920*10 + \[knob parent.overlay_source_timecode_ymargin]"} {input.width-this.box.x} {input.height-this.box.y}}
+  xjustify center
+  yjustify bottom
+  transforms {{0 2}
+    }
+  cursor_position 25
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{"\[knob parent.overlay_source_timecode_size]*input.width/1920"}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name OVERLAY_SRC_TIMECODE
+  xpos -4680
+  ypos 710
+  disable {{"max(1-\[knob parent.overlay_source_timecode], 1-\[knob parent.overlay_enabled])"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge28
+  xpos -4680
+  ypos 1010
+  disable {{"1-\[knob parent.overlay_enabled]"}}
+ }
+ Dot {
+  name Dot1
+  xpos -4646
+  ypos 1405
+ }
+ Constant {
+  inputs 0
+  color {0 0 0 1}
+  format {{{input.format}}}
+  first 1000
+  last 1000
+  name OVERLAY_CROP_MASK
+  xpos -3724
+  ypos 1044
+  disable {{1-parent.overlay_crop_mask_enabled}}
+ }
+set N59b7dc00 [stack 0]
+ Transform {
+  scale {1 {(1-parent.overlay_crop_height/input.height)/2}}
+  name OVERLAY_CROP_MASK_BOTTOM_TRANS
+  xpos -3897
+  ypos 1140
+ }
+push $N59b7dc00
+ Transform {
+  scale {1 {(1-parent.overlay_crop_height/input.height)/2}}
+  center {0 {input.height}}
+  name OVERLAY_CROP_MASK_TOP_TRANS
+  xpos -3545
+  ypos 1140
+ }
+ Merge2 {
+  inputs 2
+  metainput All
+  rangeinput All
+  name Merge31
+  xpos -3726
+  ypos 1257
+ }
+ Merge2 {
+  inputs 2
+  name Merge32
+  xpos -3726
+  ypos 1402
+ }
+push $N59b49800
+ Merge2 {
+  inputs 2
+  name Merge17
+  xpos -3180
+  ypos 1402
+ }
+ Reformat {
+  inputs 0
+  format {{{input.format}}}
+  pbb true
+  name SLATE_FORMAT
+  xpos -1729
+  ypos 689
+ }
+set N59b7c400 [stack 0]
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "REEL NAME"
+  old_message {{82 69 69 76 32 78 65 77 69}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*17"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  cursor_position 9
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_REELNAME
+  xpos -874
+  ypos 818
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_reel_name]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 28
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  leading 0.2
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_REELNAME
+  xpos -874
+  ypos 941
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message COLORSPACE
+  old_message {{67 79 76 79 82 83 80 65 67 69}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*16"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_COLORSPACE
+  xpos -1054
+  ypos 817
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_colorspace]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 29
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  leading 0.2
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_COLORSPACE
+  xpos -1054
+  ypos 939
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message LENS
+  old_message {{76 69 78 83}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*15"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_LENS
+  xpos -1254
+  ypos 815
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_camera_lens]"
+  old_expression_markers {{0 -1}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  leading 0.2
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_LENS
+  xpos -1254
+  ypos 939
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "COMMENT\n"
+  old_message {{67 79 77 77 69 78 84 10}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*6"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_COMMENT
+  xpos -1458
+  ypos 819
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "- add more dirty dust\n- light up the corner\n- follow the new concept version "
+  old_message {{45 32 97 100 100 32 109 111 114 101 32 100 105 114 116 121 32 100 117 115 116 10 45 32 108 105 103 104 116 32 117 112 32 116 104 101 32 99 111 114 110 101 114 10 45 32 102 111 108 108 111 119 32 116 104 101 32 110 101 119 32 99 111 110 99 101 112 116 32 118 101 114 115 105 111 110 32}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 77
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  leading 0.2
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_COMMENT
+  xpos -1458
+  ypos 935
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "DATE\n"
+  old_message {{68 65 84 69 10}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*5"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_DATE
+  xpos -1646
+  ypos 819
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[? parent.auto_date==1 \[date] \[knob parent.date]] \n"
+  old_message {{48 55 47 49 52 47 50 48 32 10}
+    }
+  old_expression_markers {{0 7}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 28
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_DATE
+  xpos -1646
+  ypos 935
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message RANGE
+  old_message {{82 65 78 71 69}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*4"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  cursor_position 5
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_RANGE
+  xpos -1867
+  ypos 818
+ }
+set N59c6ec00 [stack 0]
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[expr \[value Input1.first_frame]+\[knob parent.time_offset]]-\[expr \[value Input1.last_frame]+\[value parent.time_offset]] (\[expr \[value Input1.last_frame]-\[value Input1.first_frame]+1])"
+  old_message {{49 48 48 49 45 49 51 49 52 32 40 51 49 52 41}
+    }
+  old_expression_markers {{0 3 5 8 11 13}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 183
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_RANGE_AUTO
+  xpos -1938
+  ypos 907
+ }
+push $N59c6ec00
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.start_frame]-\[knob parent.end_frame] (\[expr \[value parent.end_frame]-\[value parent.start_frame]+1])\n"
+  old_message {{49 48 48 49 45 49 49 50 49 32 40 49 50 49 41 10}
+    }
+  old_expression_markers {{0 3 5 8 11 13}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 113
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_RANGE_MANUAL
+  xpos -1779
+  ypos 907
+ }
+ Switch {
+  inputs 2
+  which {{"\[knob parent.auto_frame]"}}
+  name SLATE_RANGE_SWITCH
+  xpos -1867
+  ypos 1012
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message ARTIST
+  old_message {{65 82 84 73 83 84}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*3"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  cursor_position 6
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_ARTIST
+  xpos -2054
+  ypos 819
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_artist]"
+  old_message {{97 115 116 105 112 115}
+    }
+  old_expression_markers {{0 5}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  cursor_position 26
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_ARTIST
+  xpos -2054
+  ypos 961
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message VERSION
+  old_message {{86 69 82 83 73 79 78}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*2"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_VERSION
+  xpos -2198
+  ypos 820
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_version]"
+  old_message {{115 104 111 116 46 99 111 109 112 46 118 48 48 56}
+    }
+  old_expression_markers {{0 13}
+    }
+  box {{"input.box.r+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_VERSION
+  xpos -2198
+  ypos 961
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message VENDOR
+  old_message {{86 69 78 68 79 82}
+    }
+  box {0 0 {input.width/8+30} {"input.height*0.72-(30*input.height/1080.0+\[knob parent.slate_info_v_spacing])*1"}}
+  xjustify right
+  transforms {{0 2}
+    }
+  cursor_position 6
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_VENDOR
+  xpos -2349
+  ypos 820
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_vendor]"
+  old_message {{65 115 116 105 112 115 32 83 116 117 100 105 111}
+    }
+  old_expression_markers {{0 12}
+    }
+  box {{"input.width/8+30+10+\[knob parent.slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_VENDOR
+  xpos -2349
+  ypos 960
+ }
+push $N59b7c400
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message SHOW
+  old_message {{83 72 79 87}
+    }
+  box {0 0 {input.width/8+30} {input.height*0.72}}
+  xjustify right
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  color 0.3
+  name SLATE_LABEL_SHOW
+  xpos -2520
+  ypos 819
+ }
+ Text2 {
+  font_size_toolbar 100
+  font_width_toolbar 100
+  font_height_toolbar 100
+  message "\[knob parent.slate_show]"
+  old_message {{84 82 65 78 83 52}
+    }
+  old_expression_markers {{0 5}
+    }
+  box {{"input.width/8+30+10+\[knob slate_info_h_spacing]"} 0 {input.width} {input.box.t}}
+  transforms {{0 2}
+    }
+  font {{ Microsoft Sans Serif : Regular : micross.ttf : 0 }}
+  global_font_scale {{input.height/1080.0*0.25}}
+  scale {1 1}
+  cursor_initialised true
+  autofit_bbox false
+  initial_cursor_position {{0 1080}
+    }
+  group_animations {{0} imported: 0 selected: items: "root transform/"}
+  animation_layers {{1 11 960 540 0 0 1 1 0 0 0 0}
+    }
+  name SLATE_VALUE_SHOW
+  xpos -2520
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge7
+  xpos -2349
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge8
+  xpos -2198
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge9
+  xpos -2054
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge10
+  xpos -1867
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge11
+  xpos -1646
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge12
+  xpos -1458
+  ypos 1097
+ }
+ Merge2 {
+  inputs 2
+  name Merge22
+  xpos -1254
+  ypos 1097
+  disable {{1-parent.slate_camera_lens_enabled}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge23
+  xpos -1054
+  ypos 1097
+  disable {{1-parent.slate_colorspace_enabled}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge30
+  xpos -874
+  ypos 1097
+  disable {{1-parent.slate_reel_name_enabled}}
+ }
+push $N59b49800
+ Transform {
+  translate {{"(-input.width*this.scale-20)*max(parent.slate_thumbnail_number-3, 0)-42"} {input.height*.5*.745}}
+  scale {{"\[knob parent.slate_thumbnail_size]*0.125"}}
+  center {{input.width} {input.height/2.0}}
+  name SLATE_THUMBNAIL_TRANSFORM2
+  xpos 181
+  ypos 83
+ }
+ FrameHold {
+  first_frame {{"\[value Input1.last_frame]"}}
+  name SLATE_THUMBNAIL_FH2
+  xpos 181
+  ypos 276
+ }
+push $N59b49800
+ Transform {
+  translate {{"(-input.width*this.scale-20)*max(parent.slate_thumbnail_number-2, 0)-42"} {input.height*.5*.745}}
+  scale {{"\[knob parent.slate_thumbnail_size]*0.125"}}
+  center {{input.width} {input.height/2.0}}
+  name SLATE_THUMBNAIL_TRANSFORM1
+  xpos -217
+  ypos 81
+ }
+ FrameHold {
+  first_frame {{"\[value Input1.last_frame]/2+1"}}
+  name SLATE_THUMBNAIL_FH1
+  xpos -217
+  ypos 276
+ }
+push $N59b49800
+ Transform {
+  translate {{"(-input.width*this.scale-20)*max(parent.slate_thumbnail_number-1, 0)-42"} {input.height*.5*.745}}
+  scale {{"\[knob parent.slate_thumbnail_size]*0.125"}}
+  center {{input.width} {input.height/2.0}}
+  name SLATE_THUMBNAIL_TRANSFORM
+  xpos -616
+  ypos 81
+ }
+ FrameHold {
+  first_frame {{"\[value Input1.first_frame]"}}
+  name SLATE_THUMBNAIL_FH
+  xpos -616
+  ypos 276
+ }
+ Read {
+  inputs 0
+  file "\[value parent.logo_image]"
+  format {{{DDC_SLATE_Reformat.format}}}
+  origset true
+  raw true
+  name SLATE_LOGO
+  xpos -1045
+  ypos 47
+ }
+ Premult {
+  name SLATE_LOGO_PREMULT
+  xpos -1045
+  ypos 214
+ }
+ Transform {
+  translate {{parent.width/1920*42} {(parent.height-input.height)/2}}
+  scale {{parent.width/1920*0.25}}
+  center {0 {input.height/2}}
+  name SLATE_LOGO_BASIC_TF
+  xpos -1045
+  ypos 302
+ }
+ Transform {
+  translate {0 {parent.height/2.0*0.95*0.79}}
+  scale {{"\[knob parent.slate_logo_size]"}}
+  center {0 {parent.height/2}}
+  name SLATE_LOGO_EX_TF
+  xpos -1045
+  ypos 393
+ }
+ Constant {
+  inputs 0
+  channels rgb
+  format {{{input.format}}}
+  first 1000
+  last 1000
+  name SLATE_BG_RAMP_CONSTANT
+  xpos -1568
+  ypos 52
+ }
+ Ramp {
+  opacity 0.9
+  p0 {{input.width} 0}
+  p1 {0 0}
+  type smooth
+  name SLATE_BG_RAMP
+  xpos -1568
+  ypos 180
+ }
+set N59e29000 [stack 0]
+ Transform {
+  scale {1 0.025}
+  center {{input.width/2} {input.height*0.025}}
+  filter Impulse
+  name SLATE_BG_RAMP_TOP_TF
+  xpos -1642
+  ypos 272
+ }
+push $N59e29000
+ Transform {
+  scale {-1 0.025}
+  center {{input.width/2} {input.height*0.975}}
+  filter Impulse
+  name SLATE_BG_RAMP_BOTTOM_TF
+  xpos -1491
+  ypos 272
+ }
+ Merge2 {
+  inputs 2
+  name Merge4
+  xpos -1568
+  ypos 379
+ }
+ Constant {
+  inputs 0
+  channels rgb
+  color 0.0018
+  format {{{input.format}}}
+  first 1000
+  last 1000
+  name SLATE_BG_BLACK_CONSTANT
+  xpos -1854
+  ypos 52
+ }
+ Transform {
+  translate {0 {-input.height*0.025}}
+  scale {1 0.18}
+  center {{input.width/2} {input.height}}
+  name SLATE_BG_BLACK_CONSTANT_TF
+  xpos -1854
+  ypos 273
+ }
+ Constant {
+  inputs 0
+  channels rgb
+  color 0.045
+  format {{{input.format}}}
+  first 1000
+  last 1000
+  name SLATE_BG_GRAY_CONSTANT
+  xpos -2136
+  ypos 52
+ }
+ Transform {
+  scale {1 0.95}
+  center {{input.width/2} {input.height/2}}
+  name SLATE_BG_GRAY_CONSTANT_TF
+  xpos -2136
+  ypos 273
+ }
+ ColorBars {
+  inputs 0
+  format {{{input.format}}}
+  barintensity 1
+  PAL true
+  name SLATE_COLORBAR
+  xpos -2414
+  ypos 51
+ }
+ Mirror2 {
+  flop true
+  name SLATE_COLORBAR_MIRROR
+  xpos -2414
+  ypos 203
+ }
+set N59e6cc00 [stack 0]
+ Transform {
+  scale {1 0.25}
+  center {{input.width/2} {input.height}}
+  name SLATE_COLORBAR_TOP_TF
+  xpos -2496
+  ypos 316
+ }
+push $N59e6cc00
+ Transform {
+  scale {-1 0.25}
+  center {{input.width/2} 0}
+  name SLATE_COLORBAR_BOTTOM_TF
+  xpos -2334
+  ypos 316
+ }
+ Merge2 {
+  inputs 2
+  name Merge2
+  xpos -2413
+  ypos 481
+ }
+ Merge2 {
+  inputs 2
+  name Merge1
+  xpos -2136
+  ypos 481
+ }
+ Merge2 {
+  inputs 2
+  name Merge3
+  xpos -1854
+  ypos 481
+ }
+ Merge2 {
+  inputs 2
+  name Merge5
+  xpos -1568
+  ypos 481
+ }
+ Merge2 {
+  inputs 2
+  name Merge6
+  xpos -1045
+  ypos 479
+ }
+ Merge2 {
+  inputs 2
+  name Merge21
+  xpos -616
+  ypos 479
+  disable {{"\[value parent.slate_thumbnail_number]>=1?0:1"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge24
+  xpos -217
+  ypos 479
+  disable {{"\[value parent.slate_thumbnail_number]>=2?0:1"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge25
+  xpos 181
+  ypos 481
+  disable {{"\[value parent.slate_thumbnail_number]>=3?0:1"}}
+ }
+ Merge2 {
+  inputs 2
+  name Merge13
+  xpos 181
+  ypos 1102
+ }
+ AppendClip {
+  inputs 2
+  firstFrame {{"\[knob parent.slate_frame]"}}
+  meta_from_first false
+  time ""
+  name SLATE_APPEND_CLIP
+  xpos 182
+  ypos 1402
+ }
+ FrameRange {
+  first_frame {{input.first_frame+1}}
+  last_frame {{input.last_frame}}
+  time ""
+  name SLATE_RENDER_FRAME
+  xpos 182
+  ypos 1568
+  disable {{parent.render_slate}}
+ }
+ AddTimeCode {
+  startcode 00:00:40:00
+  name SLATE_ADDTIMECODE
+  xpos 182
+  ypos 1740
+  disable {{"1-\[knob parent.add_timecode]"}}
+ }
+ Grid {
+  opacity 0.25
+  number 40
+  name SLATE_GRID
+  xpos 182
+  ypos 1917
+  disable {{"1-\[knob parent.grid_enabled]"}}
+ }
+ Output {
+  name Output1
+  xpos 182
+  ypos 2141
+ }
+end_group
