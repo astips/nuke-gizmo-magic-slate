@@ -1,7 +1,11 @@
 # nuke-gizmo-magic-slate
-Slate &amp; Burn-in Water Mark
+Slate &amp; Overlay Burn-in (watermark)
 
 ![OVERVIEW](docs/images/dynamic.gif)
+
+
+### Slate Frame
+![SLATE FRAME](docs/images/slate.jpg)
 
 
 ### Contact Sheet
@@ -13,11 +17,11 @@ Slate &amp; Burn-in Water Mark
 
 
 ### Slate Knob Overview
-![SLATE](docs/images/slate.png)
+![SLATE KNOB](docs/images/slate_knob.png)
 
 
-### Burn-in Overlay Knob Overview
-![SLATE](docs/images/overlay.png)
+### Overlay Knob Overview
+![OVERLAY KNOB](docs/images/overlay_knob.png)
 
 
 ### INSTALLATION
